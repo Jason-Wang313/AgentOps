@@ -1,0 +1,10 @@
+fastapi
+uvicorn
+psycopg[binary]
+psycopg-pool
+ujson
+redis
+fastapi-limiter
+pydantic
+pytest
+httpx
