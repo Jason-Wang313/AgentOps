@@ -2,7 +2,7 @@ version: '3.8'
 
 services:
   db:
-    image: pgvector/pgvector:pg16
+    image: pgvector/pgvector:pg16  # <--- Upgrade standard postgres to AI postgres
     environment:
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: password
@@ -13,12 +13,11 @@ services:
       - pg_data:/var/lib/postgresql/data
     command: postgres -c shared_buffers=512MB -c max_wal_size=1GB 
 
-  # --- NEW SERVICE: REDIS ---
+  # --- REDIS SERVICE ---
   redis:
     image: redis:alpine
     ports:
       - "6379:6379"
-  # --------------------------
 
 volumes:
   pg_data:

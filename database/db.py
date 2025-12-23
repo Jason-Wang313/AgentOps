@@ -77,3 +77,5 @@ def init_db():
 # This is the part you were missing!
 if __name__ == "__main__":
     init_db()
+
+get_db_connection = get_connection
