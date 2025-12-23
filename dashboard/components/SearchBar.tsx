@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Search } from "lucide-react";
+import { API_URL } from "@/lib/config";
 
 // Define the shape of the data
 interface SearchResult {
@@ -24,7 +25,7 @@ export function SearchBar({ onSelect }: SearchBarProps) {
     if (!query) return;
 
     try {
-      const res = await fetch("http://localhost:8000/search", {
+      const res = await fetch(`${API_URL}/search`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ query }),

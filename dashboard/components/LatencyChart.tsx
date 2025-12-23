@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
+import { API_URL } from '@/lib/config';
 
 export function LatencyChart() {
   const [status, setStatus] = useState("Connecting...");
@@ -12,14 +13,14 @@ export function LatencyChart() {
     setMounted(true); // <--- NEW: Set to true once the page loads
     
     // 1. Check Health
-    fetch('http://localhost:8000/')
+    fetch(`${API_URL}/`)
       .then(res => res.json())
       .then(() => setStatus("Connected"))
       .catch(() => setStatus("Connection Failed"));
 
     // 2. Fetch Real Stats
     const fetchData = () => {
-      fetch('http://localhost:8000/stats')
+      fetch(`${API_URL}/stats`)
         .then(res => res.json())
         .then(data => {
           console.log("📊 Chart Data:", data);

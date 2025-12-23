@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { LatencyChart } from "@/components/LatencyChart";
 import { SearchBar } from "@/components/SearchBar";
+import { API_URL } from "@/lib/config";
 
 export default function Home() {
   const [selectedTrace, setSelectedTrace] = useState<any>(null);
@@ -91,7 +92,7 @@ export default function Home() {
                 onClick={async () => {
                   if(!confirm("Are you sure you want to resolve (delete) this incident?")) return;
                   
-                  await fetch(`http://localhost:8000/traces/${selectedTrace.id}`, {
+                  await fetch(`${API_URL}/traces/${selectedTrace.id}`, {
                     method: 'DELETE'
                   });
                   
