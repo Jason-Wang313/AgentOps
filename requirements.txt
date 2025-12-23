@@ -1,10 +1,6 @@
 fastapi
 uvicorn
-psycopg[binary]
-psycopg-pool
-ujson
-redis
-fastapi-limiter
+psycopg2-binary
+sentence-transformers
+numpy
 pydantic
-pytest
-httpx
