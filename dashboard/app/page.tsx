@@ -11,7 +11,7 @@ interface Trace {
   latency: number;
   time: string;
   payload: any;
-  id: number; // <--- ADDED THIS LINE
+  id: number;
 }
 
 export default function Home() {
@@ -97,17 +97,31 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* THE NEW BUTTON */}
+              {/* 👇 THE FIXED BUTTON CODE (Safe String) 👇 */}
               <button 
                 onClick={async () => {
-                  if(!confirm("Are you sure you want to resolve (delete) this incident?")) return;
-                  
-                  // Now TypeScript knows selectedTrace.id exists!
-                  await fetch(`${API_URL}/traces/${selectedTrace.id}`, {
-                    method: 'DELETE'
-                  });
-                  
-                  setSelectedTrace(null); // Clear selection
-                  alert("Incident Resolved! 🧹");
+                  if(!confirm("Are you sure?")) return;
+                  const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+                  await fetch(`${apiUrl}/traces/${selectedTrace.id}`, { method: 'DELETE' });
+                  setSelectedTrace(null); 
+                  alert("Resolved! 🧹");
                 }}
-                className="mt-6 w-full bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/50 py-3 rounded-lg font-medium transition-all flex items-center justify-
+                className="mt-6 w-full bg-red-500/10 text-red-500 border border-red-500/50 py-3 rounded-lg flex justify-center hover:bg-red-500/20"
+              >
+                🗑️ Resolve Incident
+              </button>
+            </div>
+          ) : (
+            <div className="h-full flex flex-col items-center justify-center text-zinc-600 text-center space-y-2">
+              <div className="w-12 h-12 rounded-full bg-zinc-800/50 flex items-center justify-center">
+                🔍
+              </div>
+              <p className="text-sm">Select an agent to inspect details</p>
+            </div>
+          )}
+        </div>
+
+      </div>
+    </main>
+  );
+}
