@@ -1,10 +1,19 @@
-# Ignore the Python Backend files (Vercel shouldn't touch these)
+# Ignore Python backend files
 *.py
 requirements.txt
+api/
 ingestion/
 database/
+tests/
+benchmark.py
+search.py
 seed_cloud.py
+seed_data.py
+verify_db.py
 
-# Ignore other non-frontend items
-docker-compose.yml
+# Ignore Docker files
 Dockerfile
+docker-compose.yml
+
+# Keep dashboard folder (Next.js app)
+!dashboard/
