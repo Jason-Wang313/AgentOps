@@ -1,48 +1,43 @@
-# database/db.py
+import os
 import psycopg
 import time
 import sys
 
-# 1. Verification Print (If you don't see this, the file isn't running)
+# 1. Verification Print
 print("🚀 Script starting...")
 
-# Connection String
-DB_URI = "postgresql://admin:password@localhost:5432/agentops"
+# CRITICAL CHANGE: 
+# This tells Python: "Look for the secret variable SUPABASE_URL first."
+# If it can't find it (like on your laptop), it defaults to localhost.
+DB_URI = os.getenv("SUPABASE_URL", "postgresql://admin:password@localhost:5432/agentops")
 
 def get_connection():
     return psycopg.connect(DB_URI)
 
-# database/db.py (Add this function)
-
 def bulk_insert_logs(rows):
-    """
-    Uses PostgreSQL COPY protocol for maximum throughput.
-    'rows' should be a list of tuples: (ts, agent_id, level, action, payload, embedding)
-    """
     if not rows:
         return
-
     with get_connection() as conn:
         with conn.cursor() as cur:
-            # "COPY" is roughly 10-50x faster than "INSERT"
             with cur.copy("COPY agent_logs (ts, agent_id, level, action, payload, embedding) FROM STDIN") as copy:
                 for row in rows:
                     copy.write_row(row)
             conn.commit()
 
 def init_db():
-    print("⏳ Attempting to connect to Docker container...")
-    
-   # database/db.py
-    
-    # ... (imports and connection logic remain the same) ...
+    print(f"⏳ Attempting to connect to Database...")
 
-  
+    # SAFETY CHECK: Only drop tables if we are NOT in production
+    if "supa" in DB_URI:
+        print("🌍 Detected Cloud Database. Skipping DROP TABLE to protect data.")
+        drop_sql = "-- Skipping DROP TABLE in production"
+    else:
+        drop_sql = "DROP TABLE IF EXISTS agent_logs CASCADE;"
 
-    schema_sql = """
+    schema_sql = f"""
     CREATE EXTENSION IF NOT EXISTS vector;
-    DROP TABLE IF EXISTS agent_logs CASCADE;
-    CREATE TABLE agent_logs (
+    {drop_sql}
+    CREATE TABLE IF NOT EXISTS agent_logs (
         id BIGINT GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
         ts TIMESTAMP WITH TIME ZONE NOT NULL,
         agent_id TEXT NOT NULL,
@@ -51,13 +46,8 @@ def init_db():
         payload JSONB NOT NULL,
         embedding vector(1536)
     );
-
-    -- CREATE INDEX idx_agent_id ON agent_logs(agent_id);  <--- COMMENT THIS OUT
     """
     
-    # ... (rest of the file remains the same) ...
-    
-    # Retry Logic (Wait for Docker to wake up)
     max_retries = 5
     for attempt in range(max_retries):
         try:
@@ -65,16 +55,15 @@ def init_db():
                 with conn.cursor() as cur:
                     cur.execute(schema_sql)
                     conn.commit()
-            print("✅ SUCCESS: Database initialized and Table created.")
+            print("✅ SUCCESS: Database initialized.")
             return
         except Exception as e:
             print(f"⚠️ Connection failed (Attempt {attempt+1}/{max_retries}): {e}")
             time.sleep(2)
     
-    print("❌ CRITICAL ERROR: Could not connect to Docker.")
+    print("❌ CRITICAL ERROR: Could not connect to Database.")
     sys.exit(1)
 
-# This is the part you were missing!
 if __name__ == "__main__":
     init_db()
 
