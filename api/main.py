@@ -7,11 +7,9 @@ from psycopg_pool import ConnectionPool
 from psycopg.rows import dict_row
 from typing import Optional
 import json
+import os # Added OS to read environment variables
 import time
 import random
-import redis.asyncio as redis
-from fastapi_limiter import FastAPILimiter
-from fastapi_limiter.depends import RateLimiter
 from datetime import datetime, timedelta
 
 # --- NEW: Import AI Library ---
@@ -21,8 +19,7 @@ from sentence_transformers import SentenceTransformer
 from database.db import get_connection
 
 # --- Configuration ---
-DB_URI = "postgresql://admin:password@localhost:5432/agentops"
-REDIS_URL = "redis://localhost:6379"
+# WE REMOVED REDIS_URL to prevent crashes
 API_KEY_NAME = "X-API-Key"
 VALID_API_KEYS = {"sk-agentops-secret-123", "sk-yc-demo-456"}
 
@@ -41,6 +38,8 @@ async def get_api_key(api_key_header: str = Security(api_key_header)):
     )
 
 # --- Connection Pool ---
+# NOTE: We use os.getenv to ensure we use the Render Environment Variable if available
+DB_URI = os.getenv("SUPABASE_URL", "postgresql://admin:password@localhost:5432/agentops")
 pool = ConnectionPool(DB_URI, min_size=1, max_size=10, kwargs={"row_factory": dict_row}, open=False)
 
 @asynccontextmanager
@@ -56,26 +55,20 @@ async def lifespan(app: FastAPI):
     # 2. Open DB Pool
     pool.open()
     
-    # 3. Connect to Redis
-    try:
-        redis_connection = redis.from_url(REDIS_URL, encoding="utf-8", decode_responses=True)
-        await FastAPILimiter.init(redis_connection)
-        print("✅ Redis Rate Limiter Initialized")
-    except Exception as e:
-        print(f"❌ Redis Failed: {e}")
+    # REMOVED: Redis connection block
     
     yield
     
     print("🛑 API Shutting down...")
     pool.close()
-    await redis_connection.aclose()
+    # REMOVED: Redis close
 
 app = FastAPI(title="AgentOps API", lifespan=lifespan)
 
 # --- CORS Middleware ---
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],
+    allow_origins=["*"], # Changed to "*" to allow Render frontend to hit it easily
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -143,9 +136,6 @@ class SearchQuery(BaseModel):
 def search_traces(search: SearchQuery):
     """
     The Magic AI Search:
-    1. Converts your text -> Numbers (Vector)
-    2. Asks Database -> 'Find vectors closest to this one'
-    3. Returns ID so we can resolve/delete it
     """
     conn = get_connection()
     if not conn:
@@ -157,7 +147,6 @@ def search_traces(search: SearchQuery):
         
         with conn.cursor() as cur:
             # 2. SQL Vector Search using Cosine Distance (<=>)
-            # NOTE: We added 'id' to the SELECT list (row index 3)
             cur.execute("""
                 SELECT agent_id, payload, ts, id,
                        1 - (embedding <=> %s::vector) as similarity
@@ -186,8 +175,8 @@ def search_traces(search: SearchQuery):
                     "latency": latency,
                     "time": row[2].strftime("%H:%M"),
                     "payload": payload,
-                    "id": row[3],      # <--- We need this for the DELETE button
-                    "score": row[4]    # <--- Similarity score is now index 4
+                    "id": row[3],
+                    "score": row[4]
                 })
             
             return {"results": results}
@@ -218,4 +207,6 @@ def delete_trace(log_id: int):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("api.main:app", host="0.0.0.0", port=8000, reload=True)
+    # IMPORTANT: Use environment variable for PORT!
+    port = int(os.environ.get("PORT", 10000))
+    uvicorn.run("api.main:app", host="0.0.0.0", port=port, reload=False)
