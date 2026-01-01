@@ -15,10 +15,7 @@ export function LatencyChart() {
     // 1. Check Health
     const checkHealth = () => {
       fetch(`${API_URL}/`)
-        .then(res => {
-          if (res.ok) return res.json();
-          throw new Error('Health check failed');
-        })
+        .then(res => res.ok ? res.json() : Promise.reject('Health check failed'))
         .then(() => setStatus("Connected"))
         .catch(() => setStatus("Connection Failed"));
     };
@@ -26,27 +23,28 @@ export function LatencyChart() {
     // 2. Fetch Real Stats
     const fetchData = () => {
       fetch(`${API_URL}/stats`)
-        .then(res => {
-          if (res.ok) return res.json();
-          throw new Error('Failed to fetch stats');
-        })
+        .then(res => res.ok ? res.json() : Promise.reject('Failed to fetch stats'))
         .then(data => {
-          const rawData = data.history || data;
+          // The API might return the array in a 'history' property, or as the root object.
+          const rawData = data?.history || data;
           
-          // Map and format the data for the chart
-          const formattedData = rawData.map(item => ({
-            // The API likely returns 'timestamp' and 'avg_latency'.
-            // The chart expects 'time' and 'latency'.
-            // We also format the timestamp to be more readable.
-            time: new Date(item.timestamp).toLocaleTimeString(),
-            latency: item.avg_latency
-          })).reverse(); // Reverse to show latest data on the right
+          // **DEFENSIVE CHECK**: Only process the data if it's an array.
+          if (Array.isArray(rawData)) {
+            const formattedData = rawData.map(item => ({
+              // Map API keys to the keys the chart expects.
+              time: new Date(item.timestamp).toLocaleTimeString(),
+              latency: item.avg_latency
+            })).reverse(); // Show latest data on the right.
 
-          setChartData(formattedData);
+            setChartData(formattedData);
+          } else {
+            // If data is not an array, log an error and don't update the chart.
+            console.error("Received data is not an array:", rawData);
+          }
         })
         .catch(err => {
           console.error("Fetch error:", err);
-          setStatus("Connection Failed");
+          // Don't change status here, let the health check handle it.
         });
     };
 
