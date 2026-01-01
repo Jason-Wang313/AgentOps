@@ -5,8 +5,18 @@ import { LatencyChart } from "@/components/LatencyChart";
 import { SearchBar } from "@/components/SearchBar";
 import { API_URL } from "@/lib/config";
 
+// 👇 DEFINING THE MISSING INTERFACE
+interface Trace {
+  agent_id: string;
+  latency: number;
+  time: string;
+  payload: any;
+  id: number; // <--- ADDED THIS LINE
+}
+
 export default function Home() {
-  const [selectedTrace, setSelectedTrace] = useState<any>(null);
+  // 👇 Updated <any> to <Trace | null> for type safety
+  const [selectedTrace, setSelectedTrace] = useState<Trace | null>(null);
 
   return (
     <main className="min-h-screen bg-black text-zinc-200 p-8">
@@ -18,7 +28,7 @@ export default function Home() {
           <p className="text-zinc-500">Mission Control Center</p>
         </div>
         {/* Search Bar sits here now */}
-        <SearchBar onSelect={(trace) => setSelectedTrace(trace)} />
+        <SearchBar onSelect={(trace: any) => setSelectedTrace(trace)} />
       </div>
 
       {/* --- STATS CARDS --- */}
@@ -92,6 +102,7 @@ export default function Home() {
                 onClick={async () => {
                   if(!confirm("Are you sure you want to resolve (delete) this incident?")) return;
                   
+                  // Now TypeScript knows selectedTrace.id exists!
                   await fetch(`${API_URL}/traces/${selectedTrace.id}`, {
                     method: 'DELETE'
                   });
@@ -99,22 +110,4 @@ export default function Home() {
                   setSelectedTrace(null); // Clear selection
                   alert("Incident Resolved! 🧹");
                 }}
-                className="mt-6 w-full bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/50 py-3 rounded-lg font-medium transition-all flex items-center justify-center gap-2"
-              >
-                🗑️ Resolve Incident
-              </button>
-            </div>
-          ) : (
-            <div className="h-full flex flex-col items-center justify-center text-zinc-600 text-center space-y-2">
-              <div className="w-12 h-12 rounded-full bg-zinc-800/50 flex items-center justify-center">
-                🔍
-              </div>
-              <p className="text-sm">Select an agent to inspect details</p>
-            </div>
-          )}
-        </div>
-
-      </div>
-    </main>
-  );
-}
+                className="mt-6 w-full bg-red-500/10 hover:bg-red-500/20 text-red-500 border border-red-500/50 py-3 rounded-lg font-medium transition-all flex items-center justify-
