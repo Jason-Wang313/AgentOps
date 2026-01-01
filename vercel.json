@@ -2,7 +2,6 @@
   "rewrites": [
     {
       "source": "/api/:match*",
-      "destination": "https://agentops-api.onrender.com/:match*"
-    }
+      "destination": "/api/main.py"
   ]
 }

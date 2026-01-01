@@ -4,7 +4,6 @@ import { useEffect, useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { API_URL } from '@/lib/config';
 
-// Define the shape of our chart data to satisfy TypeScript
 interface ChartDataPoint {
   time: string;
   latency: number;
@@ -12,61 +11,46 @@ interface ChartDataPoint {
 
 export function LatencyChart() {
   const [status, setStatus] = useState("Connecting...");
-  // Explicitly type the state to be an array of our defined shape
-  const [chartData, setChartData] = useState<ChartDataPoint[]>([]); 
-  const [mounted, setMounted] = useState(false); // <--- NEW: Track if we are in the browser
+  const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
+  const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
-    setMounted(true); // Set to true once the page loads
-    
-    // 1. Check Health
-    const checkHealth = () => {
-      fetch(`${API_URL}/`)
-        .then(res => res.ok ? res.json() : Promise.reject('Health check failed'))
-        .then(() => setStatus("Connected"))
-        .catch(() => setStatus("Connection Failed"));
-    };
+    setMounted(true);
 
-    // 2. Fetch Real Stats
     const fetchData = () => {
+      // 1. Use the config API_URL
       fetch(`${API_URL}/stats`)
-        .then(res => res.ok ? res.json() : Promise.reject('Failed to fetch stats'))
+        .then(res => {
+          if (!res.ok) throw new Error('Network response was not ok');
+          return res.json();
+        })
         .then(data => {
-          // The API might return the array in a 'history' property, or as the root object.
-          const rawData = data?.history || data;
+          setStatus("Connected");
           
-          // **DEFENSIVE CHECK**: Only process the data if it's an array.
-          if (Array.isArray(rawData)) {
-            const formattedData = rawData.map(item => ({
-              // Map API keys to the keys the chart expects.
-              time: new Date(item.timestamp).toLocaleTimeString(),
-              latency: item.avg_latency
-            })).reverse(); // Show latest data on the right.
+          // 2. Handle different data structures (array vs object)
+          const rawData = Array.isArray(data) ? data : (data.history || []);
+          
+          // 3. FIX: Map the CORRECT database fields
+          const formattedData = rawData.map((item: any) => ({
+            // Backend sends 'ts', not 'timestamp'
+            time: new Date(item.ts).toLocaleTimeString(),
+            // Backend sends latency inside 'payload' or as 'latency'
+            latency: item.payload?.latency || item.latency || 0 
+          })).reverse();
 
-            setChartData(formattedData);
-          } else {
-            // If data is not an array, log an error and don't update the chart.
-            console.error("Received data is not an array:", rawData);
-          }
+          setChartData(formattedData);
         })
         .catch(err => {
           console.error("Fetch error:", err);
-          // Don't change status here, let the health check handle it.
+          setStatus("Error");
         });
     };
 
-    checkHealth();
     fetchData();
-    const healthInterval = setInterval(checkHealth, 10000);
-    const dataInterval = setInterval(fetchData, 5000); 
-
-    return () => {
-      clearInterval(healthInterval);
-      clearInterval(dataInterval);
-    };
+    const interval = setInterval(fetchData, 5000);
+    return () => clearInterval(interval);
   }, []);
 
-  // <--- NEW: Prevent rendering the chart until the browser is ready
   if (!mounted) return <div className="h-[300px] w-full bg-zinc-900/50 rounded-xl" />;
 
   return (
@@ -78,11 +62,14 @@ export function LatencyChart() {
       </div>
       
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={chartData}> 
+        <LineChart data={chartData}>
           <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
           <XAxis dataKey="time" stroke="#666" tick={{fontSize: 12}} tickLine={false} axisLine={false} />
           <YAxis stroke="#666" tick={{fontSize: 12}} tickLine={false} axisLine={false} tickFormatter={(value) => `${value}ms`} />
-          <Tooltip contentStyle={{ backgroundColor: '#000', border: '1px solid #333' }} itemStyle={{ color: '#fff' }} />
+          <Tooltip 
+            contentStyle={{ backgroundColor: '#000', border: '1px solid #333' }} 
+            itemStyle={{ color: '#fff' }}
+          />
           <Line type="monotone" dataKey="latency" stroke="#3b82f6" strokeWidth={2} dot={false} />
         </LineChart>
       </ResponsiveContainer>
