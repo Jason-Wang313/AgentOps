@@ -1,0 +1,10 @@
+# Ignore the Python Backend files (Vercel shouldn't touch these)
+*.py
+requirements.txt
+ingestion/
+database/
+seed_cloud.py
+
+# Ignore other non-frontend items
+docker-compose.yml
+Dockerfile
