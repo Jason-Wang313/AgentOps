@@ -1,6 +1,9 @@
 fastapi
 uvicorn
-psycopg2-binary
-sentence-transformers
+psycopg[binary]
+psycopg-pool
 numpy
 pydantic
+torch==2.2.0 --index-url https://download.pytorch.org/whl/cpu
+sentence-transformers
+python-multipart
