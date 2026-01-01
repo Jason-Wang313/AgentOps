@@ -5,7 +5,7 @@ import { LatencyChart } from "@/components/LatencyChart";
 import { SearchBar } from "@/components/SearchBar";
 import { API_URL } from "@/lib/config";
 
-// 👇 DEFINING THE MISSING INTERFACE
+// 👇 DEFINING THE INTERFACE
 interface Trace {
   agent_id: string;
   latency: number;
@@ -15,7 +15,7 @@ interface Trace {
 }
 
 export default function Home() {
-  // 👇 Updated <any> to <Trace | null> for type safety
+  // 👇 State typed with Trace interface
   const [selectedTrace, setSelectedTrace] = useState<Trace | null>(null);
 
   return (
@@ -27,7 +27,7 @@ export default function Home() {
           <h1 className="text-3xl font-bold text-white tracking-tight">AgentOps</h1>
           <p className="text-zinc-500">Mission Control Center</p>
         </div>
-        {/* Search Bar sits here now */}
+        {/* Search Bar */}
         <SearchBar onSelect={(trace: any) => setSelectedTrace(trace)} />
       </div>
 
@@ -97,7 +97,7 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* 👇 THE FIXED BUTTON CODE (Safe String) 👇 */}
+              {/* 👇 FIXED BUTTON LOGIC AND STYLING 👇 */}
               <button 
                 onClick={async () => {
                   if(!confirm("Are you sure?")) return;
