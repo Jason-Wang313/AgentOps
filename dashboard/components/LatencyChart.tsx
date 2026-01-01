@@ -10,29 +10,55 @@ export function LatencyChart() {
   const [mounted, setMounted] = useState(false); // <--- NEW: Track if we are in the browser
 
   useEffect(() => {
-    setMounted(true); // <--- NEW: Set to true once the page loads
+    setMounted(true); // Set to true once the page loads
     
     // 1. Check Health
-    fetch(`${API_URL}/`)
-      .then(res => res.json())
-      .then(() => setStatus("Connected"))
-      .catch(() => setStatus("Connection Failed"));
+    const checkHealth = () => {
+      fetch(`${API_URL}/`)
+        .then(res => {
+          if (res.ok) return res.json();
+          throw new Error('Health check failed');
+        })
+        .then(() => setStatus("Connected"))
+        .catch(() => setStatus("Connection Failed"));
+    };
 
     // 2. Fetch Real Stats
     const fetchData = () => {
       fetch(`${API_URL}/stats`)
-        .then(res => res.json())
-        .then(data => {
-          console.log("📊 Chart Data:", data);
-          // If the API returns { history: [...] }, use that. Otherwise use data directly.
-          setChartData(data.history || data); 
+        .then(res => {
+          if (res.ok) return res.json();
+          throw new Error('Failed to fetch stats');
         })
-        .catch(err => console.error("Fetch error:", err));
+        .then(data => {
+          const rawData = data.history || data;
+          
+          // Map and format the data for the chart
+          const formattedData = rawData.map(item => ({
+            // The API likely returns 'timestamp' and 'avg_latency'.
+            // The chart expects 'time' and 'latency'.
+            // We also format the timestamp to be more readable.
+            time: new Date(item.timestamp).toLocaleTimeString(),
+            latency: item.avg_latency
+          })).reverse(); // Reverse to show latest data on the right
+
+          setChartData(formattedData);
+        })
+        .catch(err => {
+          console.error("Fetch error:", err);
+          setStatus("Connection Failed");
+        });
     };
 
-    fetchData(); 
-    const interval = setInterval(fetchData, 5000); 
-    return () => clearInterval(interval); 
+    checkHealth();
+    fetchData();
+    const healthInterval = setInterval(checkHealth, 10000);
+    const dataInterval = setInterval(fetchData, 5000); 
+
+    return () => {
+      clearInterval(healthInterval);
+      clearInterval(dataInterval);
+    };
   }, []);
 
   // <--- NEW: Prevent rendering the chart until the browser is ready
