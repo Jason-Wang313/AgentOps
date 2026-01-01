@@ -1,7 +1,0 @@
-{
-  "rewrites": [
-    {
-      "source": "/api/:match*",
-      "destination": "/api/main.py"
-  ]
-}
