@@ -4,9 +4,16 @@ import { useEffect, useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 import { API_URL } from '@/lib/config';
 
+// Define the shape of our chart data to satisfy TypeScript
+interface ChartDataPoint {
+  time: string;
+  latency: number;
+}
+
 export function LatencyChart() {
   const [status, setStatus] = useState("Connecting...");
-  const [chartData, setChartData] = useState([]); 
+  // Explicitly type the state to be an array of our defined shape
+  const [chartData, setChartData] = useState<ChartDataPoint[]>([]); 
   const [mounted, setMounted] = useState(false); // <--- NEW: Track if we are in the browser
 
   useEffect(() => {
