@@ -8,3 +8,4 @@ torch==2.2.0 --index-url https://download.pytorch.org/whl/cpu
 sentence-transformers
 python-multipart
 redis
+fastapi-limiter
