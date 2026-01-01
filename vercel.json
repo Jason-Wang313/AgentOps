@@ -1,5 +1,8 @@
 {
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "http://localhost:8000/:match" }
+    {
+      "source": "/api/:match*",
+      "destination": "https://agentops-e0zs.onrender.com/api/:match*"
+    }
   ]
 }

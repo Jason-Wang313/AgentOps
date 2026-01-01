@@ -7,7 +7,7 @@ from psycopg_pool import ConnectionPool
 from psycopg.rows import dict_row
 from typing import Optional
 import json
-import os # Added OS to read environment variables
+import os 
 import time
 import random
 from datetime import datetime, timedelta
@@ -19,7 +19,6 @@ from sentence_transformers import SentenceTransformer
 from database.db import get_connection
 
 # --- Configuration ---
-# WE REMOVED REDIS_URL to prevent crashes
 API_KEY_NAME = "X-API-Key"
 VALID_API_KEYS = {"sk-agentops-secret-123", "sk-yc-demo-456"}
 
@@ -38,7 +37,6 @@ async def get_api_key(api_key_header: str = Security(api_key_header)):
     )
 
 # --- Connection Pool ---
-# NOTE: We use os.getenv to ensure we use the Render Environment Variable if available
 DB_URI = os.getenv("SUPABASE_URL", "postgresql://admin:password@localhost:5432/agentops")
 pool = ConnectionPool(DB_URI, min_size=1, max_size=10, kwargs={"row_factory": dict_row}, open=False)
 
@@ -55,20 +53,17 @@ async def lifespan(app: FastAPI):
     # 2. Open DB Pool
     pool.open()
     
-    # REMOVED: Redis connection block
-    
     yield
     
     print("🛑 API Shutting down...")
     pool.close()
-    # REMOVED: Redis close
 
 app = FastAPI(title="AgentOps API", lifespan=lifespan)
 
 # --- CORS Middleware ---
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # Changed to "*" to allow Render frontend to hit it easily
+    allow_origins=["*"], # <--- ALLOWS ALL ORIGINS (Fixes CORS Error)
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
