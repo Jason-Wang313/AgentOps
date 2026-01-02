@@ -82,12 +82,23 @@ def health_check():
 def ingest_log(log: AgentLog):
     """Receives a log from an agent and saves it."""
     try:
-        # Create dummy embedding if model failed, else encode
-        vector = [0.0] * 1536
+        # 1. Generate the raw vector (Size: 384)
+        vector = [0.0] * 1536 # Default fallback
         if model:
-            # Simple encoding of the action text
-            vector = model.encode(log.action).tolist()
+            raw_vector = model.encode(log.action).tolist()
+            
+            # --- THE FIX: Pad 384 up to 1536 ---
+            # This allows the free model to work with the OpenAI-sized database column
+            current_len = len(raw_vector)
+            target_len = 1536
+            
+            if current_len < target_len:
+                # Add zeros to the end to match database schema
+                vector = raw_vector + [0.0] * (target_len - current_len)
+            else:
+                vector = raw_vector[:target_len] 
 
+        # 2. Insert into Database
         with pool.connection() as conn:
             with conn.cursor() as cur:
                 cur.execute("""
@@ -95,7 +106,9 @@ def ingest_log(log: AgentLog):
                     VALUES (NOW(), %s, %s, %s, %s, %s)
                 """, (log.agent_id, log.level, log.action, json.dumps(log.payload), vector))
                 conn.commit()
+                
         return {"status": "logged"}
+        
     except Exception as e:
         print(f"Ingest Error: {e}")
         raise HTTPException(status_code=500, detail=str(e))
