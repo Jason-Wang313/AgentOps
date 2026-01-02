@@ -17,7 +17,7 @@ export function LatencyChart() {
     setMounted(true);
 
     const fetchData = () => {
-      // 1. FIX: Connect directly to Render (Bypass Vercel Proxy)
+      // 1. Direct connection to your Render Backend
       fetch('https://agentops-e0zs.onrender.com/stats')
         .then(res => {
           if (!res.ok) throw new Error('Network response was not ok');
@@ -25,19 +25,20 @@ export function LatencyChart() {
         })
         .then(data => {
           setStatus("Connected");
-          
-          // 2. Extract the history array safely
+          console.log("🔥 Data received from Backend:", data); // Check your browser console!
+
           const rawData = Array.isArray(data) ? data : (data.history || []);
           
-          // 3. FIX: Map the fields exactly as the new backend sends them
-          // Backend now returns pre-formatted: { "time": "HH:MM:SS", "latency": 123 }
-          const formattedData = rawData.map((item: any) => ({
-            time: item.time,       // Use 'time' directly (not item.ts)
-            latency: item.latency  // Use 'latency' directly
-          }));
+          if (rawData.length === 0) {
+            console.log("⚠️ Database is empty");
+            setStatus("No Data");
+            return;
+          }
 
-          // Note: We removed .reverse() because the backend now sends data 
-          // in chronological order (Oldest -> Newest)
+          const formattedData = rawData.map((item: any) => ({
+            time: item.time,
+            latency: item.latency
+          }));
 
           setChartData(formattedData);
         })
@@ -47,33 +48,74 @@ export function LatencyChart() {
         });
     };
 
+    // Fetch immediately, then every 2 seconds for that "Live" feel
     fetchData();
-    const interval = setInterval(fetchData, 5000);
+    const interval = setInterval(fetchData, 2000);
     return () => clearInterval(interval);
   }, []);
 
+  // Prevent hydration errors
   if (!mounted) return <div className="h-[300px] w-full bg-zinc-900/50 rounded-xl" />;
 
   return (
-    <div className="h-[300px] w-full bg-zinc-900/50 border border-zinc-800 rounded-xl p-4 relative">
+    <div 
+      className="bg-zinc-900/50 border border-zinc-800 rounded-xl p-4 relative"
+      style={{ height: '350px', width: '100%' }} // <--- FORCE HEIGHT
+    >
+      {/* Status Badge */}
       <div className="absolute top-4 right-4 z-10">
-        <span className={`text-xs px-2 py-1 rounded-full ${status === "Connected" ? "bg-green-500/20 text-green-400" : "bg-red-500/20 text-red-400"}`}>
+        <span className={`text-xs px-2 py-1 rounded-full ${
+          status === "Connected" ? "bg-green-500/20 text-green-400" : 
+          status === "Error" ? "bg-red-500/20 text-red-400" : 
+          "bg-yellow-500/20 text-yellow-400"
+        }`}>
           {status}
         </span>
       </div>
-      
-      <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={chartData}>
-          <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
-          <XAxis dataKey="time" stroke="#666" tick={{fontSize: 12}} tickLine={false} axisLine={false} />
-          <YAxis stroke="#666" tick={{fontSize: 12}} tickLine={false} axisLine={false} tickFormatter={(value) => `${value}ms`} />
-          <Tooltip 
-            contentStyle={{ backgroundColor: '#000', border: '1px solid #333' }} 
-            itemStyle={{ color: '#fff' }}
-          />
-          <Line type="monotone" dataKey="latency" stroke="#3b82f6" strokeWidth={2} dot={false} />
-        </LineChart>
-      </ResponsiveContainer>
+
+      {/* Title */}
+      <h3 className="text-zinc-400 text-sm font-medium mb-4">Real-time Latency (ms)</h3>
+
+      {/* The Chart */}
+      {chartData.length > 0 ? (
+        <div style={{ width: '100%', height: '280px' }}> {/* <--- INNER CONTAINER */}
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={chartData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="#333" vertical={false} />
+              <XAxis 
+                dataKey="time" 
+                stroke="#666" 
+                tick={{fontSize: 12}} 
+                tickLine={false} 
+                axisLine={false} 
+              />
+              <YAxis 
+                stroke="#666" 
+                tick={{fontSize: 12}} 
+                tickLine={false} 
+                axisLine={false} 
+                tickFormatter={(value) => `${value}ms`} 
+              />
+              <Tooltip 
+                contentStyle={{ backgroundColor: '#000', border: '1px solid #333' }} 
+                itemStyle={{ color: '#fff' }}
+              />
+              <Line 
+                type="monotone" 
+                dataKey="latency" 
+                stroke="#3b82f6" 
+                strokeWidth={2} 
+                dot={false} 
+                isAnimationActive={false} // Disable animation for smoother updates
+              />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      ) : (
+        <div className="h-full flex items-center justify-center text-zinc-500 text-sm">
+          {status === "No Data" ? "Waiting for agents to start..." : "Initializing..."}
+        </div>
+      )}
     </div>
   );
 }
