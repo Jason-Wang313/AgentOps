@@ -19,7 +19,7 @@ export function LatencyChart() {
 
     const fetchData = () => {
       // 1. Use the config API_URL
-      fetch(`${API_URL}/stats`)
+      fetch('/api/proxy/stats')
         .then(res => {
           if (!res.ok) throw new Error('Network response was not ok');
           return res.json();
