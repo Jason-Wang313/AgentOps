@@ -2,7 +2,6 @@
 
 import { useEffect, useState } from 'react';
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
-import { API_URL } from '@/lib/config';
 
 interface ChartDataPoint {
   time: string;
@@ -18,8 +17,8 @@ export function LatencyChart() {
     setMounted(true);
 
     const fetchData = () => {
-      // 1. Use the config API_URL
-      fetch('/api/proxy/stats')
+      // 1. FIX: Connect directly to Render (Bypass Vercel Proxy)
+      fetch('https://agentops-e0zs.onrender.com/stats')
         .then(res => {
           if (!res.ok) throw new Error('Network response was not ok');
           return res.json();
@@ -27,16 +26,18 @@ export function LatencyChart() {
         .then(data => {
           setStatus("Connected");
           
-          // 2. Handle different data structures (array vs object)
+          // 2. Extract the history array safely
           const rawData = Array.isArray(data) ? data : (data.history || []);
           
-          // 3. FIX: Map the CORRECT database fields
+          // 3. FIX: Map the fields exactly as the new backend sends them
+          // Backend now returns pre-formatted: { "time": "HH:MM:SS", "latency": 123 }
           const formattedData = rawData.map((item: any) => ({
-            // Backend sends 'ts', not 'timestamp'
-            time: new Date(item.ts).toLocaleTimeString(),
-            // Backend sends latency inside 'payload' or as 'latency'
-            latency: item.payload?.latency || item.latency || 0 
-          })).reverse();
+            time: item.time,       // Use 'time' directly (not item.ts)
+            latency: item.latency  // Use 'latency' directly
+          }));
+
+          // Note: We removed .reverse() because the backend now sends data 
+          // in chronological order (Oldest -> Newest)
 
           setChartData(formattedData);
         })
