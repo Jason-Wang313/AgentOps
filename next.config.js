@@ -3,8 +3,8 @@ const nextConfig = {
   async rewrites() {
     return [
       {
-        source: '/api/proxy/:path*',
-        destination: 'https://agentops-api.onrender.com/:path*', // The actual backend URL
+        source: '/api/proxy/:path*', // Matches /api/proxy/stats
+        destination: 'https://agentops-api.onrender.com/:path*', // Forwards to https://agentops-api.onrender.com/stats
       },
     ]
   },

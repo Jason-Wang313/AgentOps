@@ -1,3 +1,4 @@
+from database.db import init_db
 from fastapi import FastAPI, HTTPException, Depends, Security, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.security.api_key import APIKeyHeader
@@ -59,6 +60,14 @@ async def lifespan(app: FastAPI):
     pool.close()
 
 app = FastAPI(title="AgentOps API", lifespan=lifespan)
+app = FastAPI()
+
+# --- ADD THIS BLOCK ---
+@app.on_event("startup")
+def startup_event():
+    print("🤖 Startup: Initializing Database...")
+    init_db()
+# ----------------------
 
 # --- CORS Middleware ---
 app.add_middleware(
