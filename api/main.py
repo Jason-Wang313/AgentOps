@@ -115,10 +115,11 @@ def ingest_log(log: AgentLog):
 
 @app.get("/stats")
 def get_stats():
-    """Fetches the last 20 logs safely."""
+    """Fetches the last 20 logs safely (handles both Dict and Tuple rows)."""
     try:
         with pool.connection() as conn:
             with conn.cursor() as cur:
+                # 1. Select data (ts is index 0, payload is index 1)
                 cur.execute("""
                     SELECT ts, payload 
                     FROM agent_logs 
@@ -129,15 +130,28 @@ def get_stats():
                 
                 data = []
                 for row in reversed(rows):
-                    payload = row['payload']
-                    # Handle stringified JSON if needed
-                    if isinstance(payload, str):
-                        payload = json.loads(payload)
+                    # 2. Hybrid Safety Check: Handle Tuple vs Dict
+                    if isinstance(row, dict):
+                        ts = row['ts']
+                        payload = row['payload']
+                    else:
+                        ts = row[0] 
+                        payload = row[1]
                     
-                    latency = payload.get("latency", 0) if isinstance(payload, dict) else 0
+                    # 3. Ensure Payload is a Dict
+                    if isinstance(payload, str):
+                        try:
+                            payload = json.loads(payload)
+                        except:
+                            payload = {}
+                    
+                    # 4. Extract Latency safely
+                    latency = 0
+                    if isinstance(payload, dict):
+                        latency = payload.get("latency", 0)
                     
                     data.append({
-                        "time": row['ts'].strftime("%H:%M:%S"),
+                        "time": ts.strftime("%H:%M:%S"),
                         "latency": latency
                     })
                 
@@ -145,7 +159,7 @@ def get_stats():
             
     except Exception as e:
         print(f"Stats Error: {e}")
-        # Return empty list instead of 500ing
+        # Return empty list instead of crashing (500)
         return {"history": []}
 
 if __name__ == "__main__":
