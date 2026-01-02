@@ -115,7 +115,7 @@ def ingest_log(log: AgentLog):
 
 @app.get("/stats")
 def get_stats():
-    """Fetches the last 20 logs safely (handles both Dict and Tuple rows)."""
+    """Fetches the last 100 logs safely (handles both Dict and Tuple rows)."""
     try:
         with pool.connection() as conn:
             with conn.cursor() as cur:
@@ -124,8 +124,10 @@ def get_stats():
                     SELECT ts, payload 
                     FROM agent_logs 
                     ORDER BY ts DESC 
-                    LIMIT 20
+                    LIMIT 100
                 """)
+                # ^^^ UPDATED LIMIT TO 100 FOR SMOOTH ANIMATION ^^^
+                
                 rows = cur.fetchall()
                 
                 data = []
