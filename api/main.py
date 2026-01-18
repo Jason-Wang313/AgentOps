@@ -49,12 +49,10 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="AgentOps API", lifespan=lifespan)
 
-# --- THE FIX: PUBLIC CORS MIDDLEWARE ---
-# We use the "Wildcard" (*) strategy.
-# To make this work, allow_credentials MUST be False.
+# --- PUBLIC CORS MIDDLEWARE ---
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],      # Allow ALL origins (Vercel, Localhost, Curl)
+    allow_origins=["*"],      # Allow ALL origins
     allow_credentials=False,  # Disable cookies/auth headers for public access
     allow_methods=["*"],
     allow_headers=["*"],
@@ -123,5 +121,41 @@ def get_stats():
                 rows = cur.fetchall()
                 
                 data = []
+                # --- INDENTATION FIX IS HERE ---
                 for row in reversed(rows):
                     # Hybrid Safety Check: Handle Tuple vs Dict
+                    if isinstance(row, dict):
+                        ts = row['ts']
+                        payload = row['payload']
+                    else:
+                        ts = row[0] 
+                        payload = row[1]
+                    
+                    # Ensure Payload is a Dict
+                    if isinstance(payload, str):
+                        try:
+                            payload = json.loads(payload)
+                        except:
+                            payload = {}
+                    
+                    # Extract Latency safely
+                    latency = 0
+                    if isinstance(payload, dict):
+                        latency = payload.get("latency", 0)
+                    
+                    data.append({
+                        "time": ts.strftime("%H:%M:%S"),
+                        "latency": latency
+                    })
+                
+                return {"history": data}
+            
+    except Exception as e:
+        print(f"Stats Error: {e}")
+        # Return empty list instead of crashing (500)
+        return {"history": []}
+
+if __name__ == "__main__":
+    import uvicorn
+    port = int(os.environ.get("PORT", 10000))
+    uvicorn.run("api.main:app", host="0.0.0.0", port=port)
