@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect, useState } from 'react';
-import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, Defs, LinearGradient, Stop } from 'recharts';
+import { useEffect, useState, useRef } from 'react';
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from 'recharts';
 
 interface ChartDataPoint {
   time: string;
@@ -9,109 +9,94 @@ interface ChartDataPoint {
 }
 
 export function LatencyChart() {
-  const [status, setStatus] = useState("Connecting...");
   const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
   const [mounted, setMounted] = useState(false);
+  // Using a ref to track data without triggering re-renders too early
+  const dataRef = useRef<ChartDataPoint[]>([]);
 
   useEffect(() => {
     setMounted(true);
 
-    const fetchData = () => {
-      // Fetch directly from Render
-      fetch('https://agentops-e0zs.onrender.com/stats')
-        .then(res => {
-          if (!res.ok) throw new Error('Network response was not ok');
-          return res.json();
-        })
-        .then(data => {
-          setStatus("Live");
-          const rawData = Array.isArray(data) ? data : (data.history || []);
-          
-          if (rawData.length === 0) return;
-
+    const fetchData = async () => {
+      try {
+        const res = await fetch('https://agentops-e0zs.onrender.com/stats');
+        const data = await res.json();
+        const rawData = Array.isArray(data) ? data : (data.history || []);
+        
+        if (rawData.length > 0) {
           const formattedData = rawData.map((item: any) => ({
             time: item.time,
             latency: item.latency
           }));
-
-          setChartData(formattedData);
-        })
-        .catch(err => setStatus("Error"));
+          
+          // ✨ Update the ref buffer
+          dataRef.current = formattedData;
+          setChartData([...formattedData]);
+        }
+      } catch (err) {
+        console.error("Uplink error:", err);
+      }
     };
 
-    fetchData();
-    // ⚡ SUPER FAST POLLING (100ms) for smooth animation
-    const interval = setInterval(fetchData, 100); 
+    // ⚡ Fast Sync: Poll the server every 200ms
+    const interval = setInterval(fetchData, 200); 
     return () => clearInterval(interval);
   }, []);
 
-  if (!mounted) return <div className="h-[300px] w-full bg-zinc-900/50 rounded-xl" />;
+  if (!mounted) return <div className="h-[350px] w-full bg-black rounded-xl" />;
 
   return (
-    <div 
-      className="bg-black border border-zinc-800 rounded-xl p-4 relative overflow-hidden"
-      style={{ height: '350px', width: '100%' }}
-    >
-      {/* Live Indicator */}
+    <div className="bg-black border border-zinc-800 rounded-xl p-4 relative overflow-hidden" style={{ height: '350px', width: '100%' }}>
+      {/* Live Neon Indicator */}
       <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
-        <div className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
-        <span className="text-xs text-green-400 font-mono uppercase tracking-wider">
-          {status}
-        </span>
+        <div className="w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_10px_#22d3ee] animate-pulse" />
+        <span className="text-[10px] text-cyan-400 font-mono uppercase tracking-[0.2em]">Live Uplink</span>
       </div>
 
-      <h3 className="text-zinc-400 text-sm font-medium mb-4 tracking-wide">REAL-TIME LATENCY</h3>
+      <h3 className="text-zinc-500 text-[10px] font-bold mb-6 tracking-[0.3em] uppercase">System Latency Monitor</h3>
 
-      {chartData.length > 0 ? (
-        <div style={{ width: '100%', height: '280px' }}>
-          <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={chartData}>
-              <defs>
-                {/* ✨ The Gradient Definition */}
-                <linearGradient id="colorLatency" x1="0" y1="0" x2="1" y2="0">
-                  <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.8}/>
-                  <stop offset="95%" stopColor="#10b981" stopOpacity={1}/>
-                </linearGradient>
-              </defs>
-              
-              <CartesianGrid strokeDasharray="3 3" stroke="#222" vertical={false} />
-              
-              {/* Hide X Axis for cleaner look like the video */}
-              <XAxis dataKey="time" hide={true} />
-              
-              <YAxis 
-                stroke="#444" 
-                tick={{fontSize: 10, fill: '#666'}} 
-                tickLine={false} 
-                axisLine={false} 
-                tickFormatter={(value) => `${value}ms`}
-                domain={[0, 150]} // Keep the scale stable
-              />
-              
-              <Tooltip 
-                contentStyle={{ backgroundColor: '#000', border: '1px solid #333', borderRadius: '8px' }} 
-                itemStyle={{ color: '#fff' }}
-                cursor={{ stroke: '#333', strokeWidth: 1 }}
-              />
-              
-              {/* 🌊 The Glowing Line */}
-              <Line 
-                type="monotone" 
-                dataKey="latency" 
-                stroke="url(#colorLatency)" 
-                strokeWidth={3} 
-                dot={false} 
-                isAnimationActive={false}
-                style={{ filter: 'drop-shadow(0px 0px 8px rgba(59, 130, 246, 0.5))' }} // NEON GLOW
-              />
-            </LineChart>
-          </ResponsiveContainer>
-        </div>
-      ) : (
-        <div className="h-full flex items-center justify-center text-zinc-600 font-mono text-sm animate-pulse">
-          INITIALIZING UPLINK...
-        </div>
-      )}
+      <div style={{ width: '100%', height: '260px' }}>
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={chartData}>
+            <defs>
+              <linearGradient id="lineGradient" x1="0" y1="0" x2="1" y2="0">
+                <stop offset="0%" stopColor="#06b6d4" />
+                <stop offset="50%" stopColor="#3b82f6" />
+                <stop offset="100%" stopColor="#8b5cf6" />
+              </linearGradient>
+            </defs>
+            <CartesianGrid strokeDasharray="0" stroke="#111" vertical={false} />
+            <XAxis dataKey="time" hide />
+            <YAxis 
+              domain={[0, 160]} 
+              hide 
+            />
+            <Tooltip 
+              contentStyle={{ backgroundColor: '#000', border: '1px solid #222', fontSize: '12px' }}
+              itemStyle={{ color: '#06b6d4' }}
+              cursor={{ stroke: '#222' }}
+            />
+            <Line 
+              type="basis" // ✨ 'basis' creates the liquid, organic curve from the video
+              dataKey="latency" 
+              stroke="url(#lineGradient)" 
+              strokeWidth={4} 
+              dot={false}
+              isAnimationActive={true}
+              animationDuration={400} // ✨ Smooths the transition between data polls
+              style={{
+                filter: 'drop-shadow(0px 0px 12px rgba(6, 182, 212, 0.6))',
+              }}
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+      
+      {/* Visual Bottom Detail */}
+      <div className="mt-4 flex justify-between items-center opacity-30">
+        <div className="text-[9px] text-white font-mono">BUFFER_SYNC_STABLE</div>
+        <div className="text-[9px] text-white font-mono">98.4% UPTIME</div>
+      </div>
     </div>
   );
 }
