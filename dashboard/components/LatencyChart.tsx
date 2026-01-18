@@ -15,8 +15,7 @@ export function LatencyChart() {
 
   useEffect(() => {
     setMounted(true);
-    // ... (Your fetch logic remains the same) ...
-    // For this example, I'm keeping your existing fetch logic structure
+
     const fetchData = async () => {
       try {
         const res = await fetch('https://agentops-e0zs.onrender.com/stats');
@@ -24,7 +23,10 @@ export function LatencyChart() {
         const rawData = Array.isArray(data) ? data : (data.history || []);
         
         if (rawData.length > 0) {
-          const formattedData = rawData.map((item: any) => ({
+          // Keep only the last 20-30 points to ensure smooth scrolling performance
+          const slicedData = rawData.slice(-30); 
+          
+          const formattedData = slicedData.map((item: any) => ({
             time: item.time,
             latency: item.latency
           }));
@@ -37,7 +39,10 @@ export function LatencyChart() {
       }
     };
 
-    const interval = setInterval(fetchData, 200); 
+    // CRITICAL CHANGE: 
+    // Ideally, for "liquid" smooth motion, you want 100ms or faster.
+    // If your API limit allows, set this to 100. If 200 is fixed, the chart will step at 5fps.
+    const interval = setInterval(fetchData, 100); 
     return () => clearInterval(interval);
   }, []);
 
@@ -48,8 +53,8 @@ export function LatencyChart() {
       
       {/* Live Neon Indicator */}
       <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
-        <div className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_10px_#3b82f6] animate-pulse" />
-        <span className="text-[10px] text-blue-400 font-mono uppercase tracking-[0.2em]">Live Uplink</span>
+        <div className="w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_10px_#22d3ee] animate-pulse" />
+        <span className="text-[10px] text-cyan-400 font-mono uppercase tracking-[0.2em]">Live Uplink</span>
       </div>
 
       <h3 className="text-zinc-500 text-[10px] font-bold mb-2 tracking-[0.3em] uppercase">System Latency Monitor</h3>
@@ -58,41 +63,56 @@ export function LatencyChart() {
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={chartData}>
             <defs>
-              {/* === CHANGE 1: THE BLUE GRADIENT === */}
-              {/* This makes the line go from Cyan to Deep Blue (No Purple) */}
+              {/* === GRADIENT MATCHING THE VIDEO === */}
               <linearGradient id="lineGradient" x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0%" stopColor="#06b6d4" /> {/* Cyan */}
-                <stop offset="100%" stopColor="#2563eb" /> {/* Deep Blue */}
+                <stop offset="0%" stopColor="#0891b2" /> {/* Darker Cyan */}
+                <stop offset="100%" stopColor="#22d3ee" /> {/* Bright Cyan */}
               </linearGradient>
               
               <linearGradient id="colorLatency" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-                <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                <stop offset="0%" stopColor="#06b6d4" stopOpacity={0.4}/>
+                <stop offset="100%" stopColor="#06b6d4" stopOpacity={0}/>
               </linearGradient>
             </defs>
             
             <CartesianGrid strokeDasharray="0" stroke="#111" vertical={false} />
             <XAxis dataKey="time" hide />
-            <YAxis domain={[0, 200]} hide />
+            {/* Fixed domain is crucial for the 'wave' effect so the Y-axis doesn't jump */}
+            <YAxis domain={[0, 'auto']} hide />
             
             <Tooltip 
               contentStyle={{ backgroundColor: '#000', border: '1px solid #222', fontSize: '12px', borderRadius: '8px' }}
-              itemStyle={{ color: '#3b82f6' }}
-              cursor={{ stroke: '#222' }}
+              itemStyle={{ color: '#22d3ee' }}
+              cursor={{ stroke: '#333', strokeWidth: 1 }}
             />
 
             <Area 
-              // === CHANGE 2: THE SNAKE EFFECT ===
-              // 'basis' creates that smooth, organic curve you saw in the video
+              // 'basis' creates the liquid curve
               type="basis" 
               dataKey="latency" 
               stroke="url(#lineGradient)" 
-              strokeWidth={4} 
+              strokeWidth={3} 
               fillOpacity={1} 
               fill="url(#colorLatency)" 
-              isAnimationActive={true}
-              animationDuration={300} 
+              
+              // === THE FIX ===
+              // We DISABLE internal animation. 
+              // This stops the chart from "morphing" and allows it to "stream" 
+              // smoothly as new data points arrive.
+              isAnimationActive={false}
+              
               style={{
-                // === CHANGE 3: THE GLOW ===
-                // This adds the neon light effect around the line
-                filter: 'drop-shadow(0px 0px 8px rgba(59,
+                filter: 'drop-shadow(0px 0px 6px rgba(6, 182, 212, 0.5))',
+              }}
+            />
+          </AreaChart>
+        </ResponsiveContainer>
+      </div>
+      
+      <div className="mt-2 flex justify-between items-center opacity-30">
+        <div className="text-[9px] text-white font-mono uppercase">Buffer: Stable</div>
+        <div className="text-[9px] text-white font-mono uppercase">Status: Optimal</div>
+      </div>
+    </div>
+  );
+}
