@@ -11,7 +11,10 @@ interface ChartDataPoint {
 export function LatencyChart() {
   const [chartData, setChartData] = useState<ChartDataPoint[]>([]);
   const [mounted, setMounted] = useState(false);
-  const dataRef = useRef<ChartDataPoint[]>([]);
+  
+  // CONFIG: These must match to get the "Linear Flow" effect
+  const REFRESH_RATE_MS = 100; // Fetch new data every 100ms
+  const ANIMATION_DURATION = 100; // Animate the transition for exactly 100ms
 
   useEffect(() => {
     setMounted(true);
@@ -23,26 +26,27 @@ export function LatencyChart() {
         const rawData = Array.isArray(data) ? data : (data.history || []);
         
         if (rawData.length > 0) {
-          // Keep only the last 20-30 points to ensure smooth scrolling performance
-          const slicedData = rawData.slice(-30); 
+          // Keep strictly 40 points so the chart doesn't "squeeze" or "stretch"
+          // This creates the illusion of a sliding window
+          const slicedData = rawData.slice(-40); 
           
           const formattedData = slicedData.map((item: any) => ({
             time: item.time,
             latency: item.latency
           }));
           
-          dataRef.current = formattedData;
-          setChartData([...formattedData]);
+          setChartData(formattedData);
         }
       } catch (err) {
         console.error("Uplink error:", err);
       }
     };
 
-    // CRITICAL CHANGE: 
-    // Ideally, for "liquid" smooth motion, you want 100ms or faster.
-    // If your API limit allows, set this to 100. If 200 is fixed, the chart will step at 5fps.
-    const interval = setInterval(fetchData, 100); 
+    // Initial fetch
+    fetchData();
+
+    // The heartbeat of the chart
+    const interval = setInterval(fetchData, REFRESH_RATE_MS); 
     return () => clearInterval(interval);
   }, []);
 
@@ -63,12 +67,10 @@ export function LatencyChart() {
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={chartData}>
             <defs>
-              {/* === GRADIENT MATCHING THE VIDEO === */}
               <linearGradient id="lineGradient" x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0%" stopColor="#0891b2" /> {/* Darker Cyan */}
-                <stop offset="100%" stopColor="#22d3ee" /> {/* Bright Cyan */}
+                <stop offset="0%" stopColor="#0891b2" />
+                <stop offset="100%" stopColor="#22d3ee" />
               </linearGradient>
-              
               <linearGradient id="colorLatency" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="0%" stopColor="#06b6d4" stopOpacity={0.4}/>
                 <stop offset="100%" stopColor="#06b6d4" stopOpacity={0}/>
@@ -77,8 +79,12 @@ export function LatencyChart() {
             
             <CartesianGrid strokeDasharray="0" stroke="#111" vertical={false} />
             <XAxis dataKey="time" hide />
-            {/* Fixed domain is crucial for the 'wave' effect so the Y-axis doesn't jump */}
-            <YAxis domain={[0, 'auto']} hide />
+            
+            {/* CRITICAL: Fixed Domain 
+               If this is 'auto', the chart jumps vertically every time a high number leaves the screen.
+               Keeping it fixed [0, 200] ensures only the line moves, not the frame.
+            */}
+            <YAxis domain={[0, 250]} hide />
             
             <Tooltip 
               contentStyle={{ backgroundColor: '#000', border: '1px solid #222', fontSize: '12px', borderRadius: '8px' }}
@@ -87,22 +93,20 @@ export function LatencyChart() {
             />
 
             <Area 
-              // 'basis' creates the liquid curve
               type="basis" 
               dataKey="latency" 
               stroke="url(#lineGradient)" 
-              strokeWidth={3} 
+              strokeWidth={4} 
               fillOpacity={1} 
               fill="url(#colorLatency)" 
               
-              // === THE FIX ===
-              // We DISABLE internal animation. 
-              // This stops the chart from "morphing" and allows it to "stream" 
-              // smoothly as new data points arrive.
-              isAnimationActive={false}
+              // === THE SECRET SAUCE ===
+              isAnimationActive={true}
+              animationDuration={ANIMATION_DURATION} // Matches the interval (100ms)
+              animationEasing="linear" // Prevents the "stop-and-go" jerky look
               
               style={{
-                filter: 'drop-shadow(0px 0px 6px rgba(6, 182, 212, 0.5))',
+                filter: 'drop-shadow(0px 0px 8px rgba(6, 182, 212, 0.5))',
               }}
             />
           </AreaChart>
