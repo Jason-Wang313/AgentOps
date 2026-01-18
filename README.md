@@ -113,7 +113,7 @@
 ### 🟢 Launch Cluster
 ```bash
 # Clone repository
-git clone (https://github.com/Jason-Wang313/AgentOps.git)
+git clone git clone https://github.com/Jason-Wang313/AgentOps.git
 cd agentops
 
 # Start all services (PostgreSQL, API, WebSocket, UI)
@@ -252,7 +252,7 @@ if (cluster.isMaster) {
 ### 🔐 Environment Variables
 ```bash
 # Database
-DATABASE_URL= (http://localhost:8000/docs#/default/search_logs_search_post)
+DATABASE_URL= postgresql://user:password@localhost:5432/agentops
 POSTGRES_MAX_CONNECTIONS=100
 
 # API
