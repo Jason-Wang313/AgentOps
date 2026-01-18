@@ -18,11 +18,8 @@ export function LatencyChart() {
 
     const fetchData = async () => {
       try {
-        // Pointing to your live Render backend
         const res = await fetch('https://agentops-e0zs.onrender.com/stats');
         const data = await res.json();
-        
-        // Handle potential different response structures safely
         const rawData = Array.isArray(data) ? data : (data.history || []);
         
         if (rawData.length > 0) {
@@ -39,7 +36,6 @@ export function LatencyChart() {
       }
     };
 
-    // ⚡ Fast Sync: Poll the server every 200ms for smooth animation
     const interval = setInterval(fetchData, 200); 
     return () => clearInterval(interval);
   }, []);
@@ -48,7 +44,7 @@ export function LatencyChart() {
 
   return (
     <div className="bg-black border border-zinc-800 rounded-xl p-4 relative overflow-hidden flex flex-col justify-between" style={{ height: '350px', width: '100%' }}>
-      {/* Live Neon Indicator */}
+      {/* Live Neon Indicator (Blue/Cyan) */}
       <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
         <div className="w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_10px_#22d3ee] animate-pulse" />
         <span className="text-[10px] text-cyan-400 font-mono uppercase tracking-[0.2em]">Live Uplink</span>
@@ -56,21 +52,18 @@ export function LatencyChart() {
 
       <h3 className="text-zinc-500 text-[10px] font-bold mb-2 tracking-[0.3em] uppercase">System Latency Monitor</h3>
 
-      {/* ✅ THE FIX: Explicit height wrapper 
-        This prevents the "width(-1)" error by giving the ResponsiveContainer a concrete bounding box.
-      */}
       <div className="w-full h-[260px] min-h-[260px]">
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={chartData}>
             <defs>
-              {/* The Stroke Gradient (Cyan -> Blue -> Purple) */}
+              {/* Blue/Purple Gradient */}
               <linearGradient id="lineGradient" x1="0" y1="0" x2="1" y2="0">
-                <stop offset="0%" stopColor="#06b6d4" />
-                <stop offset="50%" stopColor="#3b82f6" />
-                <stop offset="100%" stopColor="#8b5cf6" />
+                <stop offset="0%" stopColor="#06b6d4" /> {/* Cyan */}
+                <stop offset="50%" stopColor="#3b82f6" /> {/* Blue */}
+                <stop offset="100%" stopColor="#8b5cf6" /> {/* Purple */}
               </linearGradient>
               
-              {/* The "Liquid" Fill Gradient (Fades to transparent) */}
+              {/* Fade to Transparent Fill */}
               <linearGradient id="colorLatency" x1="0" y1="0" x2="0" y2="1">
                 <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.3}/>
                 <stop offset="95%" stopColor="#06b6d4" stopOpacity={0}/>
@@ -88,10 +81,10 @@ export function LatencyChart() {
             />
 
             <Area 
-              type="monotone" 
+              type="basis" // ✨ 'basis' gives you the snake-like curve from the video
               dataKey="latency" 
               stroke="url(#lineGradient)" 
-              strokeWidth={3} 
+              strokeWidth={4} 
               fillOpacity={1} 
               fill="url(#colorLatency)" 
               isAnimationActive={true}
@@ -104,7 +97,6 @@ export function LatencyChart() {
         </ResponsiveContainer>
       </div>
       
-      {/* Bottom Status Detail */}
       <div className="mt-2 flex justify-between items-center opacity-30">
         <div className="text-[9px] text-white font-mono uppercase">Buffer: Stable</div>
         <div className="text-[9px] text-white font-mono uppercase">Status: Optimal</div>
