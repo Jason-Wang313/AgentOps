@@ -56,10 +56,16 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="AgentOps API", lifespan=lifespan)
 
-# --- CORS Middleware ---
+# --- CORS Middleware (FIXED) ---
+# We must specify the exact domains to allow credentials (cookies/auth headers)
+origins = [
+    "http://localhost:3000",                    # Local development
+    "https://agent-opssssssss.vercel.app",      # Your Vercel Deployment
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=origins,   # Explicit list instead of "*"
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
