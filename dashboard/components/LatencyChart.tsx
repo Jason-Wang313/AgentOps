@@ -1,216 +1,257 @@
-"use client";
+'use client';
 
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState } from 'react';
 
-// --- CONFIGURATION ---
-const ANIMATION_SPEED = 2; // Pixels to scroll per frame (Higher = Faster flow)
-const DATA_SMOOTHING = 0.08; // 0.01 (Sluggish) to 1.0 (Instant). 0.08 is "Liquid".
-const Y_MAX = 200; // Expected max latency
-const Y_MIN = 0;
+// --- Configuration ---
+const CONFIG = {
+  // Visuals
+  LINE_COLOR: '#22d3ee', // Tailwind cyan-400
+  FILL_TOP_OPACITY: 0.2,
+  GLOW_BLUR: 15,
+  LINE_WIDTH: 3,
+  
+  // Animation Physics
+  SCROLL_SPEED: 0.1, // Pixels per millisecond (Higher = faster flow)
+  
+  // Data
+  FETCH_URL: 'https://agentops-e0zs.onrender.com/stats',
+  FETCH_INTERVAL: 500, // Fallback if server doesn't dictate
+  MAX_LATENCY_Y: 300,  // Latency value that maps to top of graph (scaling)
+  KEEP_HISTORY_MS: 10000, // How many seconds of history to keep in memory
+};
 
-export function LatencyChart() {
+interface DataPoint {
+  val: number;
+  time: number;
+}
+
+export default function LatencyChart() {
   const containerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const [currentLatency, setCurrentLatency] = useState(0);
+  
+  // We use Refs for data to avoid React re-renders interrupting the Canvas loop
+  const dataRef = useRef<DataPoint[]>([]);
+  const requestRef = useRef<number>();
+  const startTimeRef = useRef<number>(Date.now());
+  
+  // For debugging/status only
+  const [currentLatency, setCurrentLatency] = useState<number>(0);
 
-  // We use refs for values that change constantly to avoid React re-renders
-  const stateRef = useRef({
-    targetVal: 40, // The value the line wants to reach (from API)
-    currentVal: 40, // The current position of the line "tip"
-    points: [] as number[], // The history of Y positions
-    width: 0,
-    height: 0,
-    isRunning: true,
-  });
-
-  // --- 1. DATA FETCHING (The Brain) ---
+  // ---------------------------------------------------------
+  // 1. Data Fetching Loop (Decoupled)
+  // ---------------------------------------------------------
   useEffect(() => {
+    let isMounted = true;
+
     const fetchData = async () => {
       try {
-        const res = await fetch('https://agentops-e0zs.onrender.com/stats');
+        const res = await fetch(CONFIG.FETCH_URL);
         const json = await res.json();
         
-        // Handle API shape
-        const rawData = Array.isArray(json) ? json : (json.history || []);
-        
-        if (rawData.length > 0) {
-          // Get the very latest data point
-          const latestItem = rawData[rawData.length - 1];
-          const newVal = typeof latestItem === 'object' ? latestItem.latency : latestItem;
+        if (isMounted && typeof json.latency === 'number') {
+          const now = Date.now();
+          const newVal = json.latency;
           
-          // Update the TARGET. The animation loop will gradually move towards this.
-          if (typeof newVal === 'number') {
-            stateRef.current.targetVal = newVal;
-            setCurrentLatency(Math.round(newVal)); // Update UI number
+          // Add to our data buffer
+          dataRef.current.push({ val: newVal, time: now });
+          setCurrentLatency(newVal);
+
+          // Prune old data to keep memory usage stable
+          const cutoff = now - CONFIG.KEEP_HISTORY_MS;
+          if (dataRef.current[0] && dataRef.current[0].time < cutoff) {
+             // Removing from front is O(N), but array is small enough (<100 items)
+             // for this to be negligible compared to Canvas ops.
+            dataRef.current = dataRef.current.filter(p => p.time > cutoff);
           }
         }
       } catch (err) {
-        // Silent fail - chart just keeps flowing flat
+        console.error("Fetch failed", err);
+      }
+      
+      if (isMounted) {
+        // Use recursive timeout to adjust for network delay variation
+        setTimeout(fetchData, 200); 
       }
     };
 
-    // Fetch often, but the animation doesn't care if this is slow or fast.
-    const interval = setInterval(fetchData, 200);
-    fetchData(); // Initial
-    return () => clearInterval(interval);
+    fetchData();
+
+    return () => { isMounted = false; };
   }, []);
 
-  // --- 2. ANIMATION LOOP (The Heart) ---
-  useEffect(() => {
+  // ---------------------------------------------------------
+  // 2. The Rendering Loop (60FPS Physics)
+  // ---------------------------------------------------------
+  const draw = (time: number) => {
     const canvas = canvasRef.current;
     const container = containerRef.current;
     if (!canvas || !container) return;
 
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
-    // Handle Resize
-    const resize = () => {
-      const { width, height } = container.getBoundingClientRect();
-      // Set high-res canvas dimensions
-      const dpr = window.devicePixelRatio || 1;
-      canvas.width = width * dpr;
-      canvas.height = height * dpr;
-      
-      // Scale down with CSS for sharpness
-      canvas.style.width = `${width}px`;
-      canvas.style.height = `${height}px`;
-      
-      // Normalize coordinate system
-      ctx.scale(dpr, dpr);
-      
-      stateRef.current.width = width;
-      stateRef.current.height = height;
+    // Handle Resize Logic inline to ensure 1:1 pixel mapping
+    const { clientWidth, clientHeight } = container;
+    if (canvas.width !== clientWidth || canvas.height !== clientHeight) {
+      canvas.width = clientWidth;
+      canvas.height = clientHeight;
+    }
 
-      // Pre-fill points array if empty
-      if (stateRef.current.points.length === 0) {
-        stateRef.current.points = new Array(Math.ceil(width / ANIMATION_SPEED) + 2).fill(40);
-      }
-    };
+    const width = canvas.width;
+    const height = canvas.height;
+    const now = Date.now();
+
+    // Clear Screen
+    ctx.clearRect(0, 0, width, height);
+
+    // --- Prepare Points ---
+    // We combine historical data with a "Live Head" point
+    // The "Live Head" projects the last known value to "now" so the line 
+    // doesn't stop moving while waiting for the next network packet.
+    const pointsToRender = [...dataRef.current];
+    if (pointsToRender.length > 0) {
+        const lastPoint = pointsToRender[pointsToRender.length - 1];
+        if (now - lastPoint.time > 0) {
+            pointsToRender.push({ val: lastPoint.val, time: now });
+        }
+    }
+
+    if (pointsToRender.length < 2) {
+      requestRef.current = requestAnimationFrame(draw);
+      return; 
+    }
+
+    // Map Time -> X Coordinates
+    // X = Width - (Age of point * Speed)
+    // This makes points flow from Right (New) to Left (Old)
+    const mappedPoints = pointsToRender.map(p => {
+        const age = now - p.time;
+        const x = width - (age * CONFIG.SCROLL_SPEED);
+        // Map Latency Value to Y (Invert because Canvas Y=0 is top)
+        // Clamp value between 0 and 1 for safe scaling
+        const normalizedY = Math.min(Math.max(p.val / CONFIG.MAX_LATENCY_Y, 0), 1); 
+        // 10% padding on bottom, 20% on top
+        const availableHeight = height * 0.7; 
+        const y = height - (normalizedY * availableHeight) - (height * 0.15); 
+        return { x, y };
+    });
+
+    // Filter points that are way off screen to the left to optimize render
+    // We keep 1 point off-screen to ensure the line flows out smoothly
+    const renderWindow = mappedPoints.filter((p, i, arr) => {
+        if (p.x >= -50) return true;
+        // Keep the one point immediately to the left of the screen
+        if (arr[i+1] && arr[i+1].x > -50) return true;
+        return false;
+    });
+
+    if (renderWindow.length < 2) {
+        requestRef.current = requestAnimationFrame(draw);
+        return;
+    }
+
+    // --- Draw the "Liquid" Path ---
+    ctx.beginPath();
     
-    // Initial resize
-    resize();
-    window.addEventListener("resize", resize);
+    // Start at the first point
+    ctx.moveTo(renderWindow[0].x, renderWindow[0].y);
 
-    // The Render Function
-    const tick = () => {
-      if (!stateRef.current.isRunning) return;
+    // Catmull-Rom Spline Interpolation Loop
+    for (let i = 0; i < renderWindow.length - 1; i++) {
+        const p0 = renderWindow[i - 1] || renderWindow[i]; // Virtual previous
+        const p1 = renderWindow[i];
+        const p2 = renderWindow[i + 1];
+        const p3 = renderWindow[i + 2] || p2; // Virtual next
 
-      const { width, height, targetVal, currentVal, points } = stateRef.current;
-      
-      // A. Physics Step: Smoothly move current value towards target value
-      // This is the "Lerp" (Linear Interpolation) math that creates curves from steps
-      const delta = targetVal - currentVal;
-      stateRef.current.currentVal += delta * DATA_SMOOTHING;
-      
-      // B. Scroll Step: Remove left point, add new right point
-      points.shift();
-      points.push(stateRef.current.currentVal);
+        // Calculate Control Points using Catmull-Rom algorithm logic
+        // Tension 6.0 creates a nice organic curve
+        const cp1x = p1.x + (p2.x - p0.x) / 6;
+        const cp1y = p1.y + (p2.y - p0.y) / 6;
 
-      // C. Draw Step
-      ctx.clearRect(0, 0, width, height);
+        const cp2x = p2.x - (p3.x - p1.x) / 6;
+        const cp2y = p2.y - (p3.y - p1.y) / 6;
 
-      // --- Draw Gradient Fill (Area) ---
-      // We create a path that goes along the line, then down to bottom corners
-      const gradientFill = ctx.createLinearGradient(0, 0, 0, height);
-      gradientFill.addColorStop(0, "rgba(6, 182, 212, 0.4)"); // Cyan with opacity
-      gradientFill.addColorStop(1, "rgba(6, 182, 212, 0)");   // Transparent at bottom
+        ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, p2.x, p2.y);
+    }
 
-      ctx.beginPath();
-      ctx.moveTo(0, height); // Start bottom left
+    // Visual Styling
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.lineWidth = CONFIG.LINE_WIDTH;
+    ctx.strokeStyle = CONFIG.LINE_COLOR;
+    
+    // Glow Effect
+    ctx.shadowColor = CONFIG.LINE_COLOR;
+    ctx.shadowBlur = CONFIG.GLOW_BLUR;
+    
+    ctx.stroke();
 
-      // Draw the wave points
-      // We iterate backwards/forwards to map the array to X coordinates
-      for (let i = 0; i < points.length; i++) {
-        // Map Y value to canvas coordinates (inverted because Canvas Y is 0 at top)
-        // Normalize: (val - min) / (max - min)
-        const normalizedY = (points[i] - Y_MIN) / (Y_MAX - Y_MIN);
-        // Clamp between 0.1 and 0.9 to avoid hitting edges too hard
-        const clampedY = Math.max(0.05, Math.min(0.95, normalizedY));
-        const yPos = height - (clampedY * height);
-        
-        const xPos = i * ANIMATION_SPEED;
-        
-        // Use quadratic curves for extra smoothness if needed, 
-        // but high-density points (via ANIMATION_SPEED) usually suffice.
-        ctx.lineTo(xPos, yPos);
-      }
+    // --- Draw Gradient Fill ---
+    // Close the path to create a shape for filling
+    ctx.lineTo(renderWindow[renderWindow.length - 1].x, height); // Down to bottom-right
+    ctx.lineTo(renderWindow[0].x, height); // Left to bottom-left
+    ctx.closePath();
 
-      ctx.lineTo(width, height); // Go to bottom right
-      ctx.closePath();
-      ctx.fillStyle = gradientFill;
-      ctx.fill();
+    // Turn off shadow for the fill so it doesn't look muddy
+    ctx.shadowBlur = 0; 
+    
+    const gradient = ctx.createLinearGradient(0, 0, 0, height);
+    gradient.addColorStop(0, hexToRgba(CONFIG.LINE_COLOR, CONFIG.FILL_TOP_OPACITY));
+    gradient.addColorStop(1, hexToRgba(CONFIG.LINE_COLOR, 0));
+    
+    ctx.fillStyle = gradient;
+    ctx.fill();
 
-      // --- Draw Neon Line (Stroke) ---
-      // Re-trace just the top line for the stroke
-      ctx.beginPath();
-      const lineGradient = ctx.createLinearGradient(0, 0, width, 0);
-      lineGradient.addColorStop(0, "#0891b2");
-      lineGradient.addColorStop(1, "#22d3ee"); // Brighter at the "new" end
+    requestRef.current = requestAnimationFrame(draw);
+  };
 
-      for (let i = 0; i < points.length; i++) {
-         const normalizedY = (points[i] - Y_MIN) / (Y_MAX - Y_MIN);
-         const clampedY = Math.max(0.05, Math.min(0.95, normalizedY));
-         const yPos = height - (clampedY * height);
-         const xPos = i * ANIMATION_SPEED;
-         
-         if (i === 0) ctx.moveTo(xPos, yPos);
-         else ctx.lineTo(xPos, yPos);
-      }
-
-      ctx.lineCap = "round";
-      ctx.lineJoin = "round";
-      ctx.lineWidth = 3;
-      ctx.strokeStyle = lineGradient;
-      ctx.shadowColor = "#22d3ee";
-      ctx.shadowBlur = 15; // The Neon Glow
-      ctx.stroke();
-
-      // Loop
-      requestAnimationFrame(tick);
-    };
-
-    const animId = requestAnimationFrame(tick);
-
+  useEffect(() => {
+    requestRef.current = requestAnimationFrame(draw);
     return () => {
-      stateRef.current.isRunning = false;
-      cancelAnimationFrame(animId);
-      window.removeEventListener("resize", resize);
+      if (requestRef.current) cancelAnimationFrame(requestRef.current);
     };
   }, []);
 
   return (
-    <div className="bg-black border border-zinc-800 rounded-xl p-4 relative overflow-hidden flex flex-col justify-between shadow-2xl" style={{ height: '350px', width: '100%' }}>
-      
-      {/* UI Overlay (Absolute Positioned on top of Canvas) */}
-      <div className="absolute top-4 left-4 z-10">
-        <h3 className="text-zinc-500 text-[10px] font-bold tracking-[0.3em] uppercase mb-1">
-          System Latency
-        </h3>
-        <div className="flex items-baseline gap-2">
-          <span className="text-3xl text-cyan-400 font-mono font-bold drop-shadow-[0_0_8px_rgba(34,211,238,0.8)]">
-            {currentLatency}
-          </span>
-          <span className="text-xs text-zinc-600 font-mono">ms</span>
+    <div className="w-full h-full flex flex-col bg-gray-900/50 rounded-xl border border-gray-800 overflow-hidden backdrop-blur-sm">
+        {/* Header / Stats Overlay */}
+        <div className="flex justify-between items-center px-4 py-3 border-b border-gray-800/50">
+            <div className="flex items-center gap-2">
+                <div className="w-2 h-2 rounded-full bg-cyan-400 animate-pulse" />
+                <span className="text-xs font-medium text-cyan-100/70 tracking-wider uppercase">Live Latency</span>
+            </div>
+            <div className="text-right">
+                <span className="text-2xl font-bold text-cyan-400 font-mono tracking-tighter">
+                    {currentLatency.toFixed(0)}
+                </span>
+                <span className="text-xs text-cyan-400/50 ml-1">ms</span>
+            </div>
         </div>
-      </div>
 
-      <div className="absolute top-4 right-4 z-10 flex items-center gap-2 border border-zinc-800 bg-zinc-900/80 px-2 py-1 rounded-full backdrop-blur-sm">
-        <div className="w-1.5 h-1.5 rounded-full bg-cyan-400 shadow-[0_0_8px_#22d3ee] animate-pulse" />
-        <span className="text-[9px] text-cyan-400 font-mono uppercase tracking-widest">Live Uplink</span>
-      </div>
+        {/* The Canvas Container */}
+        <div ref={containerRef} className="relative flex-1 w-full min-h-[200px]">
+            {/* CSS Grid Overlay for Retro Effect */}
+            <div 
+                className="absolute inset-0 pointer-events-none opacity-20"
+                style={{
+                    backgroundImage: `linear-gradient(#22d3ee 1px, transparent 1px), linear-gradient(90deg, #22d3ee 1px, transparent 1px)`,
+                    backgroundSize: '40px 40px'
+                }} 
+            />
+            
+            <canvas 
+                ref={canvasRef}
+                className="block w-full h-full"
+            />
+        </div>
+    </div>
+  );
+}
 
-      {/* The Canvas Container */}
-      <div ref={containerRef} className="absolute inset-0 w-full h-full z-0">
-         <canvas ref={canvasRef} className="block w-full h-full" />
-      </div>
-
-      {/* Background Grid (CSS) */}
-      <div className="absolute inset-0 pointer-events-none opacity-20 z-0" 
-           style={{ backgroundImage: `linear-gradient(#222 1px, transparent 1px), linear-gradient(90deg, #222 1px, transparent 1px)`, backgroundSize: '40px 40px' }} 
-      />
-      
-      {/* Footer Info */}
-      <div className="mt-auto z-10 flex justify-between items-center opacity-40 px-1">
-        <div className="text-[9px] text-white font-mono uppercase tracking-wider">Stream: Smooth-Lerp</div>
-        <div className="text-[9px] text-white font-mono uppercase tracking-wider
+// Helper to convert hex to rgba for the gradient
+function hexToRgba(hex: string, alpha: number) {
+    const r = parseInt(hex.slice(1, 3), 16);
+    const g = parseInt(hex.slice(3, 5), 16);
+    const b = parseInt(hex.slice(5, 7), 16);
+    return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+}
