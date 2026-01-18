@@ -1,24 +1,17 @@
 from database.db import init_db
-from fastapi import FastAPI, HTTPException, Depends, Security, status
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security.api_key import APIKeyHeader
 from pydantic import BaseModel
 from contextlib import asynccontextmanager
 from psycopg_pool import ConnectionPool 
 from psycopg.rows import dict_row
-from typing import Optional, List, Dict, Any
+from typing import Dict, Any, List
 import json
 import os 
-import time
-import random
-from datetime import datetime, timedelta
+from datetime import datetime
 
 # --- Import AI Library ---
 from sentence_transformers import SentenceTransformer
-
-# --- Configuration ---
-API_KEY_NAME = "X-API-Key"
-VALID_API_KEYS = {"sk-agentops-secret-123", "sk-yc-demo-456"}
 
 # --- Global Variables ---
 model = None
@@ -56,17 +49,13 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(title="AgentOps API", lifespan=lifespan)
 
-# --- CORS Middleware (FIXED) ---
-# We must specify the exact domains to allow credentials (cookies/auth headers)
-origins = [
-    "http://localhost:3000",                    # Local development
-    "https://agent-opssssssss.vercel.app",      # Your Vercel Deployment
-]
-
+# --- THE FIX: PUBLIC CORS MIDDLEWARE ---
+# We use the "Wildcard" (*) strategy.
+# To make this work, allow_credentials MUST be False.
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=origins,   # Explicit list instead of "*"
-    allow_credentials=True,
+    allow_origins=["*"],      # Allow ALL origins (Vercel, Localhost, Curl)
+    allow_credentials=False,  # Disable cookies/auth headers for public access
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -93,13 +82,11 @@ def ingest_log(log: AgentLog):
         if model:
             raw_vector = model.encode(log.action).tolist()
             
-            # --- THE FIX: Pad 384 up to 1536 ---
-            # This allows the free model to work with the OpenAI-sized database column
+            # Pad 384 up to 1536 to match OpenAI schema
             current_len = len(raw_vector)
             target_len = 1536
             
             if current_len < target_len:
-                # Add zeros to the end to match database schema
                 vector = raw_vector + [0.0] * (target_len - current_len)
             else:
                 vector = raw_vector[:target_len] 
@@ -121,56 +108,20 @@ def ingest_log(log: AgentLog):
 
 @app.get("/stats")
 def get_stats():
-    """Fetches the last 100 logs safely (handles both Dict and Tuple rows)."""
+    """Fetches the last 100 logs for the dashboard."""
     try:
         with pool.connection() as conn:
             with conn.cursor() as cur:
-                # 1. Select data (ts is index 0, payload is index 1)
+                # Select data (ts is index 0, payload is index 1)
                 cur.execute("""
                     SELECT ts, payload 
                     FROM agent_logs 
                     ORDER BY ts DESC 
                     LIMIT 100
                 """)
-                # ^^^ UPDATED LIMIT TO 100 FOR SMOOTH ANIMATION ^^^
                 
                 rows = cur.fetchall()
                 
                 data = []
                 for row in reversed(rows):
-                    # 2. Hybrid Safety Check: Handle Tuple vs Dict
-                    if isinstance(row, dict):
-                        ts = row['ts']
-                        payload = row['payload']
-                    else:
-                        ts = row[0] 
-                        payload = row[1]
-                    
-                    # 3. Ensure Payload is a Dict
-                    if isinstance(payload, str):
-                        try:
-                            payload = json.loads(payload)
-                        except:
-                            payload = {}
-                    
-                    # 4. Extract Latency safely
-                    latency = 0
-                    if isinstance(payload, dict):
-                        latency = payload.get("latency", 0)
-                    
-                    data.append({
-                        "time": ts.strftime("%H:%M:%S"),
-                        "latency": latency
-                    })
-                
-                return {"history": data}
-            
-    except Exception as e:
-        print(f"Stats Error: {e}")
-        # Return empty list instead of crashing (500)
-        return {"history": []}
-
-if __name__ == "__main__":
-    import uvicorn
-    port = int(os.environ.get("PORT", 10000))
-    uvicorn.run("api.main:app", host="0.0.0.0", port=port)
+                    # Hybrid Safety Check: Handle Tuple vs Dict
