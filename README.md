@@ -113,7 +113,7 @@
 ### 🟢 Launch Cluster
 ```bash
 # Clone repository
-git clone https://github.com/yourusername/agentops.git
+git clone (https://github.com/Jason-Wang313/AgentOps.git)
 cd agentops
 
 # Start all services (PostgreSQL, API, WebSocket, UI)
@@ -252,7 +252,7 @@ if (cluster.isMaster) {
 ### 🔐 Environment Variables
 ```bash
 # Database
-DATABASE_URL=postgresql://user:pass@postgres:5432/agentops
+DATABASE_URL= (http://localhost:8000/docs#/default/search_logs_search_post)
 POSTGRES_MAX_CONNECTIONS=100
 
 # API
@@ -328,15 +328,7 @@ Built with inspiration from:
 - **InfluxDB** — Time-series storage optimization techniques
 - **OpenAI's Evals** — Agent evaluation frameworks
 
----
 
-## 💬 Support
-
-- **📚 Documentation**: [docs.agentops.io](https://docs.agentops.io) (placeholder)
-- **🐛 Issues**: [GitHub Issues](https://github.com/yourusername/agentops/issues)
-- **💡 Discussions**: [GitHub Discussions](https://github.com/yourusername/agentops/discussions)
-
----
 
 <div align="center">
 
