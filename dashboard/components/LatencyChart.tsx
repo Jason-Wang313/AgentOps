@@ -15,7 +15,8 @@ export function LatencyChart() {
 
   useEffect(() => {
     setMounted(true);
-
+    // ... (Your fetch logic remains the same) ...
+    // For this example, I'm keeping your existing fetch logic structure
     const fetchData = async () => {
       try {
         const res = await fetch('https://agentops-e0zs.onrender.com/stats');
@@ -44,10 +45,11 @@ export function LatencyChart() {
 
   return (
     <div className="bg-black border border-zinc-800 rounded-xl p-4 relative overflow-hidden flex flex-col justify-between" style={{ height: '350px', width: '100%' }}>
-      {/* Live Neon Indicator (Blue/Cyan) */}
+      
+      {/* Live Neon Indicator */}
       <div className="absolute top-4 right-4 z-10 flex items-center gap-2">
-        <div className="w-2 h-2 rounded-full bg-cyan-400 shadow-[0_0_10px_#22d3ee] animate-pulse" />
-        <span className="text-[10px] text-cyan-400 font-mono uppercase tracking-[0.2em]">Live Uplink</span>
+        <div className="w-2 h-2 rounded-full bg-blue-500 shadow-[0_0_10px_#3b82f6] animate-pulse" />
+        <span className="text-[10px] text-blue-400 font-mono uppercase tracking-[0.2em]">Live Uplink</span>
       </div>
 
       <h3 className="text-zinc-500 text-[10px] font-bold mb-2 tracking-[0.3em] uppercase">System Latency Monitor</h3>
@@ -56,17 +58,16 @@ export function LatencyChart() {
         <ResponsiveContainer width="100%" height="100%">
           <AreaChart data={chartData}>
             <defs>
-              {/* Blue/Purple Gradient */}
+              {/* === CHANGE 1: THE BLUE GRADIENT === */}
+              {/* This makes the line go from Cyan to Deep Blue (No Purple) */}
               <linearGradient id="lineGradient" x1="0" y1="0" x2="1" y2="0">
                 <stop offset="0%" stopColor="#06b6d4" /> {/* Cyan */}
-                <stop offset="50%" stopColor="#3b82f6" /> {/* Blue */}
-                <stop offset="100%" stopColor="#8b5cf6" /> {/* Purple */}
+                <stop offset="100%" stopColor="#2563eb" /> {/* Deep Blue */}
               </linearGradient>
               
-              {/* Fade to Transparent Fill */}
               <linearGradient id="colorLatency" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.3}/>
-                <stop offset="95%" stopColor="#06b6d4" stopOpacity={0}/>
+                <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
+                <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
               </linearGradient>
             </defs>
             
@@ -76,12 +77,14 @@ export function LatencyChart() {
             
             <Tooltip 
               contentStyle={{ backgroundColor: '#000', border: '1px solid #222', fontSize: '12px', borderRadius: '8px' }}
-              itemStyle={{ color: '#06b6d4' }}
+              itemStyle={{ color: '#3b82f6' }}
               cursor={{ stroke: '#222' }}
             />
 
             <Area 
-              type="basis" // ✨ 'basis' gives you the snake-like curve from the video
+              // === CHANGE 2: THE SNAKE EFFECT ===
+              // 'basis' creates that smooth, organic curve you saw in the video
+              type="basis" 
               dataKey="latency" 
               stroke="url(#lineGradient)" 
               strokeWidth={4} 
@@ -90,17 +93,6 @@ export function LatencyChart() {
               isAnimationActive={true}
               animationDuration={300} 
               style={{
-                filter: 'drop-shadow(0px 0px 8px rgba(6, 182, 212, 0.4))',
-              }}
-            />
-          </AreaChart>
-        </ResponsiveContainer>
-      </div>
-      
-      <div className="mt-2 flex justify-between items-center opacity-30">
-        <div className="text-[9px] text-white font-mono uppercase">Buffer: Stable</div>
-        <div className="text-[9px] text-white font-mono uppercase">Status: Optimal</div>
-      </div>
-    </div>
-  );
-}
+                // === CHANGE 3: THE GLOW ===
+                // This adds the neon light effect around the line
+                filter: 'drop-shadow(0px 0px 8px rgba(59,
